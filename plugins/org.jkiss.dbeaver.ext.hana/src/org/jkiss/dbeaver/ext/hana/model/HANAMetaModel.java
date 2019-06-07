@@ -96,7 +96,7 @@ public class HANAMetaModel extends GenericMetaModel
             throw new DBException(e, dataSource);
         }
     }
-
+    
     @Override
     public String getTableDDL(DBRProgressMonitor monitor, GenericTable sourceObject, Map<String, Object> options) throws DBException {
         GenericDataSource dataSource = sourceObject.getDataSource();
@@ -122,5 +122,27 @@ public class HANAMetaModel extends GenericMetaModel
         }
 
         return super.getTableDDL(monitor, sourceObject, options);
+    }
+    
+    @Override
+    public String getTriggerDDL(DBRProgressMonitor monitor, GenericTrigger sourceObject) throws DBException {
+        GenericDataSource dataSource = sourceObject.getDataSource();
+        try (JDBCSession session = DBUtils.openMetaSession(monitor, sourceObject, "Read HANA trigger source")) {
+            try (JDBCPreparedStatement dbStat = session.prepareStatement(
+                "SELECT SCHEMA_NAME,TRIGGER_NAME,DEFINITION FROM SYS.TRIGGERS\n" +
+                    "WHERE SCHEMA_NAME = ? AND TRIGGER_NAME = ?"))
+            {
+                dbStat.setString(1, sourceObject.getContainer().getName());
+                dbStat.setString(2, sourceObject.getName());
+                try (JDBCResultSet dbResult = dbStat.executeQuery()) {
+                    if (dbResult.nextRow()) {
+                        return dbResult.getString(3);
+                    }
+                    return "-- HANA trigger source not found";
+                }
+            }
+        } catch (SQLException e) {
+            throw new DBException(e, dataSource);
+        }
     }
 }
